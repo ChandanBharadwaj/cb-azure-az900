@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>React based application</title>
+  </head>
+  <body>
+    <script
+      src="https://unpkg.com/react@17/umd/react.development.js"
+      crossorigin
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"
+      crossorigin
+      
+    ></script>
+    <script src="
+https://cdn.jsdelivr.net/npm/rxjs-fetch@2.1.6/index.min.js
+"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.26.0/babel.min.js"></script>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      class App extends React.Component {
+        constructor(props) {
+          super(props);
+          this.state = {
+            jsonInput: "",
+            events: [],
+          };
+          this.handleChange = this.handleChange.bind(this);
+          this.handleSubmit = this.handleSubmit.bind(this);
+        }
+
+        handleChange(event) {
+          this.setState({ jsonInput: event.target.value });
+        }
+
+        handleSubmit(event) {
+          event.preventDefault();
+          let json = JSON.parse(this.state.jsonInput);
+          const id = json["id"];
+
+          console.log(json);
+          fetch("http://localhost:8080/emp/" + id, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(json),
+          })
+            .then((res) => {
+              const reader = res.body.getReader();
+              return new ReadableStream({
+                start(controller) {
+                  function push() {
+                    reader.read().then(({ done, value }) => {
+                      if (done) {
+                        controller.close();
+                        return;
+                      }
+                      controller.enqueue(value);
+                      push();
+                    });
+                  }
+                  push();
+                },
+              });
+            })
+            .then((stream) => {
+              const decoder = new TextDecoder();
+              const reader = stream.getReader();
+              return new Promise((resolve, reject) => {
+                function process() {
+                  reader.read().then(({ done, value }) => {
+                    if (done) {
+                      resolve();
+                      return;
+                    }
+                    const text = decoder.decode(value,);
+                    console.log("Received message:", text.split("data:"));
+                    process();
+                  });
+                }
+                process();
+              });
+            });
+        }
+
+        render() {
+          return (
+            <div>
+              <form onSubmit={this.handleSubmit}>
+                <label htmlFor="json-input">JSON:</label>
+                <textarea
+                  id="json-input"
+                  name="json-input"
+                  rows="10"
+                  cols="50"
+                  value={this.state.jsonInput}
+                  onChange={this.handleChange}
+                ></textarea>
+                <br />
+                <button type="submit">Submit</button>
+              </form>
+              <h2>Event Streaming:</h2>
+              <ul>
+                {this.state.events.map((event, index) => (
+                  <li key={index}>{event.message}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+      }
+
+      ReactDOM.render(<App />, document.getElementById("root"));
+    </script>
+  </body>
+</html>
